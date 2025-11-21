@@ -1,9 +1,3 @@
-cd /var/www/durgerking
-
-# backup do service.php atual
-sudo cp service.php service.php.bak
-
-# sobrescreve service.php com a versão de debug
 sudo tee /var/www/durgerking/service.php > /dev/null <<'PHP'
 <?php declare(strict_types=1);
 
@@ -37,8 +31,9 @@ Router::any("{$_ENV['REMOTE_URI']}/telegram", function () {
             }
         }
     }
-    $contentType = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $rawBody = @file_get_contents('php://input');
+
     $entry = [
         'time' => $now,
         'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? '',
@@ -52,22 +47,17 @@ Router::any("{$_ENV['REMOTE_URI']}/telegram", function () {
             'REQUEST_URI' => $_SERVER['REQUEST_URI'] ?? '',
         ],
     ];
-    // append json-encoded log (with pretty)
-    file_put_contents($logFile, json_encode($entry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . "----" . PHP_EOL, FILE_APPEND | LOCK_EX);
 
-    // If content-type is JSON, merge decoded body into $_POST for compatibility
-    if ($contentType && strpos($contentType, 'application/json') !== false) {
+    file_put_contents($logFile, json_encode($entry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . "----" . PHP_EOL, FILE_APPEND);
+
+    // If JSON, decode it into $_POST
+    if (strpos($contentType, 'application/json') !== false) {
         $json = json_decode($rawBody, true);
         if (is_array($json)) {
             $_POST = array_merge($_POST, $json);
-            // also log that we merged
-            file_put_contents($logFile, "Merged json into \$_POST\n", FILE_APPEND | LOCK_EX);
-        } else {
-            file_put_contents($logFile, "JSON decode returned null or non-array. json_last_error: " . json_last_error_msg() . PHP_EOL, FILE_APPEND | LOCK_EX);
         }
     }
 
-    // Execute App() within try/catch and log exceptions
     try {
         (new App())->resolve();
         Response::send(StatusCode::OK, 'Bot is working...');
@@ -78,11 +68,9 @@ Router::any("{$_ENV['REMOTE_URI']}/telegram", function () {
             'message' => $e->getMessage(),
             'file' => $e->getFile(),
             'line' => $e->getLine(),
-            'trace' => $e->getTraceAsString()
+            'trace' => $e->getTraceAsString(),
         ];
-        file_put_contents($logFile, json_encode($err, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . "====" . PHP_EOL, FILE_APPEND | LOCK_EX);
-
-        // respond 500 with simple message to client
+        file_put_contents($logFile, json_encode($err, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . "====" . PHP_EOL, FILE_APPEND);
         Response::send(500, 'Internal Server Error');
     }
 });
