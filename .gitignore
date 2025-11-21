@@ -1,3 +1,9 @@
+/vendor/
+/.env
+/public/orders.json
+/public/*.log
+node_modules/
+composer.lock
 .idea
 /.env
 /vendor
