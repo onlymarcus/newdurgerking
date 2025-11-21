@@ -1,3 +1,10 @@
+cd /var/www/durgerking
+
+# backup do service.php atual
+sudo cp service.php service.php.bak
+
+# sobrescreve service.php com a versão de debug
+sudo tee /var/www/durgerking/service.php > /dev/null <<'PHP'
 <?php declare(strict_types=1);
 
 use ShahradElahi\DurgerKing\App;
@@ -15,36 +22,72 @@ $dotenv->load();
 
 Router::resource("{$_ENV['REMOTE_URI']}/public", __DIR__ . '/public');
 
-/*
-|--------------------------------------------------------------------------
-| CORREÇÃO ESSENCIAL PARA WEBAPP TELEGRAM
-| Aceitar JSON enviado pelo front (Cafe.apiRequest)
-|--------------------------------------------------------------------------
-*/
 Router::any("{$_ENV['REMOTE_URI']}/telegram", function () {
 
-    // Se o Telegram WebApp enviou JSON no corpo, decodificamos e movemos para $_POST
-    if (
-        isset($_SERVER['CONTENT_TYPE']) &&
-        strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false
-    ) {
-        $raw = file_get_contents('php://input');
-        $json = json_decode($raw, true);
+    // --- DEBUG: log headers, content-type, raw body and $_POST to /tmp/telegram_debug.log
+    $logFile = '/tmp/telegram_debug.log';
+    $now = date('c');
+    $headers = [];
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+    } else {
+        foreach ($_SERVER as $k => $v) {
+            if (strpos($k, 'HTTP_') === 0) {
+                $headers[$k] = $v;
+            }
+        }
+    }
+    $contentType = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : '';
+    $rawBody = @file_get_contents('php://input');
+    $entry = [
+        'time' => $now,
+        'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? '',
+        'content_type' => $contentType,
+        'headers' => $headers,
+        'raw_body' => $rawBody,
+        'post_superglobal' => $_POST,
+        'get_superglobal' => $_GET,
+        'server' => [
+            'REQUEST_METHOD' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'REQUEST_URI' => $_SERVER['REQUEST_URI'] ?? '',
+        ],
+    ];
+    // append json-encoded log (with pretty)
+    file_put_contents($logFile, json_encode($entry, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . "----" . PHP_EOL, FILE_APPEND | LOCK_EX);
 
+    // If content-type is JSON, merge decoded body into $_POST for compatibility
+    if ($contentType && strpos($contentType, 'application/json') !== false) {
+        $json = json_decode($rawBody, true);
         if (is_array($json)) {
-            // agora o App()->resolve() vai conseguir ler order_data, comment, etc.
             $_POST = array_merge($_POST, $json);
+            // also log that we merged
+            file_put_contents($logFile, "Merged json into \$_POST\n", FILE_APPEND | LOCK_EX);
+        } else {
+            file_put_contents($logFile, "JSON decode returned null or non-array. json_last_error: " . json_last_error_msg() . PHP_EOL, FILE_APPEND | LOCK_EX);
         }
     }
 
-    // processamento normal do DurgerKing
-    (new App())->resolve();
+    // Execute App() within try/catch and log exceptions
+    try {
+        (new App())->resolve();
+        Response::send(StatusCode::OK, 'Bot is working...');
+    } catch (\Throwable $e) {
+        $err = [
+            'time' => date('c'),
+            'exception' => get_class($e),
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString()
+        ];
+        file_put_contents($logFile, json_encode($err, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . "====" . PHP_EOL, FILE_APPEND | LOCK_EX);
 
-    // resposta para evitar timeout / mostrar OK
-    Response::send(StatusCode::OK, 'Bot is working...');
+        // respond 500 with simple message to client
+        Response::send(500, 'Internal Server Error');
+    }
 });
-
 
 Router::any("{$_ENV['REMOTE_URI']}", function () {
     echo "Ready to serve...";
 });
+PHP
