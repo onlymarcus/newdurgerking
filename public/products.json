@@ -1,0 +1,14 @@
+[
+  { "id": 1, "name": "Burger", "price": 4.99, "img": "Burger" },
+  { "id": 2, "name": "Fries", "price": 1.49, "img": "Fries" },
+  { "id": 3, "name": "Hotdog", "price": 3.49, "img": "Hotdog" },
+  { "id": 4, "name": "Tako", "price": 3.99, "img": "Tako" },
+  { "id": 5, "name": "Pizza", "price": 7.99, "img": "Pizza" },
+  { "id": 6, "name": "Donut", "price": 1.49, "img": "Donut" },
+  { "id": 7, "name": "Popcorn", "price": 1.99, "img": "Popcorn" },
+  { "id": 8, "name": "Coke", "price": 1.49, "img": "Coke" },
+  { "id": 9, "name": "Cake", "price": 10.99, "img": "Cake" },
+  { "id": 10, "name": "Icecream", "price": 5.99, "img": "Icecream" },
+  { "id": 11, "name": "Cookie", "price": 3.99, "img": "Cookie" },
+  { "id": 12, "name": "Flan", "price": 7.99, "img": "Flan" }
+]
