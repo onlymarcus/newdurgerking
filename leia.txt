@@ -1,0 +1,13 @@
+salvar mudanças no PC
+
+git add .
+git commit -m "alguma atualização"
+git push
+
+
+ENVIAR mudanças para o servidor VPS
+
+cd /var/www/durgerking
+git pull
+systemctl restart php8.3-fpm
+systemctl reload nginx

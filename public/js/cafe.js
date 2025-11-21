@@ -316,22 +316,40 @@ var Cafe = {
         $(".js-status").removeClass("shown");
     },
     apiRequest: function (method, data, onCallback) {
-        var authData = Telegram.WebApp.initData || "";
+        var authData = (typeof Telegram !== "undefined" &&
+                        Telegram.WebApp &&
+                        Telegram.WebApp.initData)
+                        ? Telegram.WebApp.initData
+                        : "";
+
+        var payload = Object.assign({}, data, {
+            method: method,
+            _auth: authData,
+        });
+
         $.ajax(Cafe.apiUrl, {
             type: "POST",
-            data: $.extend(data, { _auth: authData, method: method }),
+            data: JSON.stringify(payload),
+            contentType: "application/json; charset=utf-8",
             dataType: "json",
             xhrFields: {
-                withCredentials: true,
+                withCredentials: true
             },
             success: function (result) {
                 onCallback && onCallback(result);
             },
             error: function (xhr) {
-                onCallback && onCallback({ error: "Server error" });
-            },
+                var err = "Server error";
+                try {
+                    var txt = xhr.responseText || "";
+                    var parsed = JSON.parse(txt || "{}");
+                    if (parsed && parsed.error) err = parsed.error;
+                } catch (e) {}
+                onCallback && onCallback({ error: err });
+            }
         });
     },
+
 };
 
 /*!
